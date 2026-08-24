@@ -31,6 +31,10 @@ server/**config/*.local.properties
 /client/.svelte-kit/
 /client/.env
 
+/client/test-results/
+/client/playwright-report/
+/client/blob-report/
+
 /server/.classpath
 /server/.factorypath
 /server/.project
