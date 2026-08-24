@@ -44,6 +44,56 @@ test.describe('Pets overview page', () => {
 		await expect(page.getByText('No pets found matching "no-such-pet-xyz"')).toBeVisible();
 	});
 
+	test('type filter shows only pets of the selected type', async ({ page }) => {
+		await page.goto('/pets');
+
+		await page.getByRole('button', { name: 'All types' }).click();
+		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+
+		await expect(page).toHaveURL(/\/pets\?type=\d+$/);
+		await expect(page.getByRole('row', { name: /Leo/ })).toBeVisible();
+		await expect(page.getByRole('row', { name: /Rosy/ })).toHaveCount(0);
+	});
+
+	test('type filter combines with search', async ({ page }) => {
+		await page.goto('/pets');
+
+		await page.getByRole('button', { name: 'All types' }).click();
+		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await page.getByPlaceholder('Search by name, type, or owner...').fill('Leo');
+
+		await expect(page.getByRole('row', { name: /Leo/ })).toBeVisible();
+		await expect(page.getByText('Showing 1 of')).toBeVisible();
+	});
+
+	test('selecting "All types" clears the type filter', async ({ page }) => {
+		await page.goto('/pets');
+
+		await page.getByRole('button', { name: 'All types' }).click();
+		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await expect(page).toHaveURL(/\/pets\?type=\d+$/);
+
+		await page.getByRole('button', { name: 'Cat' }).click();
+		await page.getByRole('option', { name: 'All types' }).click();
+
+		await expect(page).toHaveURL('/pets');
+		await expect(page.getByRole('row', { name: /Rosy/ })).toBeVisible();
+	});
+
+	test('a bookmarked type filter URL restores the filter on load', async ({ page }) => {
+		await page.goto('/pets');
+		await page.getByRole('button', { name: 'All types' }).click();
+		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await expect(page).toHaveURL(/\/pets\?type=\d+$/);
+		const filteredUrl = page.url();
+
+		await page.goto(filteredUrl);
+
+		await expect(page.getByRole('button', { name: 'Cat' })).toBeVisible();
+		await expect(page.getByRole('row', { name: /Leo/ })).toBeVisible();
+		await expect(page.getByRole('row', { name: /Rosy/ })).toHaveCount(0);
+	});
+
 	test('clicking a pet row navigates to its own detail page', async ({ page }) => {
 		await page.goto('/pets');
 

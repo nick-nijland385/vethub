@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { getPets } from '$lib/api/pet/PetController';
 	import { getOwners } from '$lib/api/owner/OwnerController';
 	import { calculateAge } from '$lib/pet-format';
@@ -7,6 +9,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
+	import * as Select from '$lib/components/ui/select';
 	import { PawPrint, Plus, Search } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -14,6 +17,24 @@
 	let owners = $state<OwnerResponse[]>([]);
 	let loading = $state(true);
 	let searchQuery = $state('');
+
+	// The selected type filter lives in the URL (?type=<id>) so it's
+	// shareable/bookmarkable, rather than duplicated into local state.
+	let selectedTypeId = $derived.by(() => {
+		const raw = $page.url.searchParams.get('type');
+		return raw ? Number(raw) : undefined;
+	});
+
+	function setTypeFilter(value: string | undefined) {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (!value || value === 'all') {
+			params.delete('type');
+		} else {
+			params.set('type', value);
+		}
+		const query = params.toString();
+		goto(`/pets${query ? `?${query}` : ''}`, { replaceState: true, keepFocus: true, noScroll: true });
+	}
 
 	let ownerNameById = $derived.by(() => {
 		const map = new Map<number, string>();
@@ -27,16 +48,37 @@
 		return ownerNameById.get(ownerId) ?? 'Unknown owner';
 	}
 
-	// Filtered pets based on search query
-	let filteredPets = $derived.by(() => {
-		if (!searchQuery.trim()) return pets;
-		const query = searchQuery.toLowerCase();
-		return pets.filter(
-			(pet) =>
-				pet.name?.toLowerCase().includes(query) ||
-				pet.type?.name?.toLowerCase().includes(query) ||
-				ownerName(pet.ownerId).toLowerCase().includes(query)
+	// Only types actually in use by at least one pet
+	let availableTypes = $derived.by(() => {
+		const map = new Map<number, string>();
+		for (const pet of pets) {
+			if (pet.type) map.set(pet.type.id, pet.type.name);
+		}
+		return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+			a.name.localeCompare(b.name)
 		);
+	});
+
+	let selectedTypeName = $derived(
+		availableTypes.find((t) => t.id === selectedTypeId)?.name
+	);
+
+	// Filtered pets based on the type filter and search query
+	let filteredPets = $derived.by(() => {
+		let result = pets;
+		if (selectedTypeId !== undefined) {
+			result = result.filter((pet) => pet.type?.id === selectedTypeId);
+		}
+		if (searchQuery.trim()) {
+			const query = searchQuery.toLowerCase();
+			result = result.filter(
+				(pet) =>
+					pet.name?.toLowerCase().includes(query) ||
+					pet.type?.name?.toLowerCase().includes(query) ||
+					ownerName(pet.ownerId).toLowerCase().includes(query)
+			);
+		}
+		return result;
 	});
 
 	async function loadPets() {
@@ -81,9 +123,9 @@
 		</Button>
 	</div>
 
-	<!-- Search -->
-	<div class="mb-6">
-		<div class="relative max-w-md">
+	<!-- Search & filter -->
+	<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+		<div class="relative max-w-md flex-1">
 			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				type="search"
@@ -92,6 +134,21 @@
 				class="pl-10"
 			/>
 		</div>
+		<Select.Root
+			type="single"
+			value={selectedTypeId?.toString() ?? 'all'}
+			onValueChange={setTypeFilter}
+		>
+			<Select.Trigger class="w-full sm:w-[180px]">
+				{selectedTypeName ?? 'All types'}
+			</Select.Trigger>
+			<Select.Content>
+				<Select.Item value="all">All types</Select.Item>
+				{#each availableTypes as type (type.id)}
+					<Select.Item value={type.id.toString()}>{type.name}</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
 	</div>
 
 	<!-- Table -->
@@ -103,7 +160,11 @@
 	{:else if filteredPets.length === 0}
 		<div class="card p-12 text-center">
 			<PawPrint class="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-			{#if searchQuery}
+			{#if searchQuery && selectedTypeName}
+				<p class="text-muted-foreground">No {selectedTypeName}s found matching "{searchQuery}"</p>
+			{:else if selectedTypeName}
+				<p class="text-muted-foreground">No {selectedTypeName}s found</p>
+			{:else if searchQuery}
 				<p class="text-muted-foreground">No pets found matching "{searchQuery}"</p>
 			{:else}
 				<p class="text-muted-foreground">No pets registered yet</p>
