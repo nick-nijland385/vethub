@@ -1,8 +1,30 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 // Relies on the seeded dev data (server runs with `dev` profile, which
 // drops/recreates the schema and reseeds it on every startup), so Leo the
 // cat belonging to George Franklin is always present.
+
+// The type filter trigger's accessible name changes with the current
+// selection ("All types", "Cat", ...), so it's located by its stable
+// aria-label instead. Opening it has been observed to occasionally not
+// register on the first click under CI (a portal/popover timing issue),
+// so this retries the open before picking an option.
+async function selectPetType(page: Page, typeName: string) {
+	const trigger = page.getByRole('button', { name: 'Filter by pet type' });
+	const option = page.getByRole('option', { name: typeName, exact: true });
+
+	for (let attempt = 0; attempt < 3; attempt++) {
+		await trigger.click();
+		try {
+			await option.waitFor({ state: 'visible', timeout: 3000 });
+			break;
+		} catch {
+			await page.keyboard.press('Escape');
+		}
+	}
+
+	await option.click();
+}
 
 test.describe('Pets overview page', () => {
 	test('lists pets with name, type, age, and owner', async ({ page }) => {
@@ -47,8 +69,7 @@ test.describe('Pets overview page', () => {
 	test('type filter shows only pets of the selected type', async ({ page }) => {
 		await page.goto('/pets');
 
-		await page.getByRole('button', { name: 'All types' }).click();
-		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await selectPetType(page, 'Cat');
 
 		await expect(page).toHaveURL(/\/pets\?type=\d+$/);
 		await expect(page.getByRole('row', { name: /Leo/ })).toBeVisible();
@@ -58,8 +79,7 @@ test.describe('Pets overview page', () => {
 	test('type filter combines with search', async ({ page }) => {
 		await page.goto('/pets');
 
-		await page.getByRole('button', { name: 'All types' }).click();
-		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await selectPetType(page, 'Cat');
 		await page.getByPlaceholder('Search by name, type, or owner...').fill('Leo');
 
 		await expect(page.getByRole('row', { name: /Leo/ })).toBeVisible();
@@ -69,12 +89,10 @@ test.describe('Pets overview page', () => {
 	test('selecting "All types" clears the type filter', async ({ page }) => {
 		await page.goto('/pets');
 
-		await page.getByRole('button', { name: 'All types' }).click();
-		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await selectPetType(page, 'Cat');
 		await expect(page).toHaveURL(/\/pets\?type=\d+$/);
 
-		await page.getByRole('button', { name: 'Cat' }).click();
-		await page.getByRole('option', { name: 'All types' }).click();
+		await selectPetType(page, 'All types');
 
 		await expect(page).toHaveURL('/pets');
 		await expect(page.getByRole('row', { name: /Rosy/ })).toBeVisible();
@@ -82,14 +100,13 @@ test.describe('Pets overview page', () => {
 
 	test('a bookmarked type filter URL restores the filter on load', async ({ page }) => {
 		await page.goto('/pets');
-		await page.getByRole('button', { name: 'All types' }).click();
-		await page.getByRole('option', { name: 'Cat', exact: true }).click();
+		await selectPetType(page, 'Cat');
 		await expect(page).toHaveURL(/\/pets\?type=\d+$/);
 		const filteredUrl = page.url();
 
 		await page.goto(filteredUrl);
 
-		await expect(page.getByRole('button', { name: 'Cat' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Filter by pet type' })).toHaveText('Cat');
 		await expect(page.getByRole('row', { name: /Leo/ })).toBeVisible();
 		await expect(page.getByRole('row', { name: /Rosy/ })).toHaveCount(0);
 	});

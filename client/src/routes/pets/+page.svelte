@@ -139,7 +139,7 @@
 			value={selectedTypeId?.toString() ?? 'all'}
 			onValueChange={setTypeFilter}
 		>
-			<Select.Trigger class="w-full sm:w-[180px]">
+			<Select.Trigger class="w-full sm:w-[180px]" aria-label="Filter by pet type">
 				{selectedTypeName ?? 'All types'}
 			</Select.Trigger>
 			<Select.Content>
