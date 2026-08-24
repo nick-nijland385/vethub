@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getPetForOwner, deletePetForOwner } from '$lib/api/pet/PetController';
+	import { formatDate, calculateAge, sortVisitsByDateDesc } from '$lib/pet-format';
 	import type { PetResponse } from '$lib/api/models';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -27,14 +28,20 @@
 	const petId = $derived(Number($page.params.petId));
 
 	async function loadPet() {
+		const requestedOwnerId = ownerId;
+		const requestedPetId = petId;
 		loading = true;
 		try {
-			pet = await getPetForOwner(ownerId, petId);
+			const petData = await getPetForOwner(requestedOwnerId, requestedPetId);
+			if (requestedOwnerId !== ownerId || requestedPetId !== petId) return;
+			pet = petData;
 		} catch (err) {
+			if (requestedOwnerId !== ownerId || requestedPetId !== petId) return;
+			pet = null;
 			toast.error('Failed to load pet');
 			console.error('Error:', err);
 		} finally {
-			loading = false;
+			if (requestedOwnerId === ownerId && requestedPetId === petId) loading = false;
 		}
 	}
 
@@ -53,31 +60,15 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return 'Unknown';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
-
-	function calculateAge(birthDate: string | undefined): string {
-		if (!birthDate) return 'Unknown age';
-		const birth = new Date(birthDate);
-		const now = new Date();
-		const years = Math.floor((now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-		if (years === 0) {
-			const months = Math.floor((now.getTime() - birth.getTime()) / (30.44 * 24 * 60 * 60 * 1000));
-			return months <= 1 ? '< 1 month old' : `${months} months old`;
-		}
-		return years === 1 ? '1 year old' : `${years} years old`;
-	}
+	let sortedVisits = $derived(pet?.visits ? sortVisitsByDateDesc(pet.visits) : []);
 
 	// Load pet on mount and when IDs change
 	$effect(() => {
-		if (ownerId && petId) {
+		if (Number.isFinite(ownerId) && Number.isFinite(petId)) {
 			loadPet();
+		} else {
+			pet = null;
+			loading = false;
 		}
 	});
 </script>
@@ -163,7 +154,7 @@
 			</div>
 		{:else}
 			<div class="space-y-4">
-				{#each pet.visits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) as visit (visit.id)}
+				{#each sortedVisits as visit (visit.id)}
 					<Card.Root>
 						<Card.Content class="pt-6">
 							<div class="flex items-start justify-between">

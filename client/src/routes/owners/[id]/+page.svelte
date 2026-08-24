@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getOwnerById, deleteOwner as deleteOwnerApi } from '$lib/api/owner/OwnerController';
+	import { formatDate, calculateAge } from '$lib/pet-format';
 	import type { OwnerResponse, PetSummaryResponse } from '$lib/api/models';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -53,23 +54,6 @@
 		} finally {
 			deleting = false;
 		}
-	}
-
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return 'Unknown';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
-
-	function calculateAge(birthDate: string | undefined): string {
-		if (!birthDate) return 'Unknown age';
-		const birth = new Date(birthDate);
-		const now = new Date();
-		const years = Math.floor((now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-		return years === 1 ? '1 year old' : `${years} years old`;
 	}
 
 	// Load owner on mount

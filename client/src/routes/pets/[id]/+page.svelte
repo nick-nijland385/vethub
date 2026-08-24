@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { getPetById, deletePet } from '$lib/api/pet/PetController';
 	import { getOwnerById } from '$lib/api/owner/OwnerController';
+	import { formatDate, calculateAge, sortVisitsByDateDesc } from '$lib/pet-format';
 	import type { PetResponse, OwnerResponse } from '$lib/api/models';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -29,16 +30,22 @@
 	const petId = $derived(Number($page.params.id));
 
 	async function loadPet() {
+		const requestedId = petId;
 		loading = true;
 		try {
-			const petData = await getPetById(petId);
+			const petData = await getPetById(requestedId);
+			if (requestedId !== petId) return; // a newer navigation has since started
 			pet = petData;
-			owner = await getOwnerById(petData.ownerId);
+			const ownerData = await getOwnerById(petData.ownerId);
+			if (requestedId !== petId) return;
+			owner = ownerData;
 		} catch (err) {
+			if (requestedId !== petId) return;
+			pet = null;
 			toast.error('Failed to load pet');
 			console.error('Error:', err);
 		} finally {
-			loading = false;
+			if (requestedId === petId) loading = false;
 		}
 	}
 
@@ -57,31 +64,15 @@
 		}
 	}
 
-	function formatDate(dateStr: string | undefined): string {
-		if (!dateStr) return 'Unknown';
-		return new Date(dateStr).toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
-
-	function calculateAge(birthDate: string | undefined): string {
-		if (!birthDate) return 'Unknown age';
-		const birth = new Date(birthDate);
-		const now = new Date();
-		const years = Math.floor((now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-		if (years === 0) {
-			const months = Math.floor((now.getTime() - birth.getTime()) / (30.44 * 24 * 60 * 60 * 1000));
-			return months <= 1 ? '< 1 month old' : `${months} months old`;
-		}
-		return years === 1 ? '1 year old' : `${years} years old`;
-	}
+	let sortedVisits = $derived(pet?.visits ? sortVisitsByDateDesc(pet.visits) : []);
 
 	// Load pet on mount and when the ID changes
 	$effect(() => {
-		if (petId) {
+		if (Number.isFinite(petId)) {
 			loadPet();
+		} else {
+			pet = null;
+			loading = false;
 		}
 	});
 </script>
@@ -177,7 +168,7 @@
 			</div>
 		{:else}
 			<div class="space-y-4">
-				{#each pet.visits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) as visit (visit.id)}
+				{#each sortedVisits as visit (visit.id)}
 					<Card.Root>
 						<Card.Content class="pt-6">
 							<div class="flex items-start justify-between">

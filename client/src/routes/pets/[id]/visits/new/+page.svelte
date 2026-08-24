@@ -17,6 +17,12 @@
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+
+		if (!Number.isFinite(petId)) {
+			toast.error('Invalid pet');
+			return;
+		}
+
 		submitting = true;
 
 		try {

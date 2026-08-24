@@ -49,8 +49,11 @@
 
 	// Load data on mount
 	$effect(() => {
-		if (petId) {
+		if (Number.isFinite(petId)) {
 			loadData();
+		} else {
+			pet = null;
+			loading = false;
 		}
 	});
 </script>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getPets } from '$lib/api/pet/PetController';
 	import { getOwners } from '$lib/api/owner/OwnerController';
+	import { calculateAge } from '$lib/pet-format';
 	import type { PetResponse, OwnerResponse } from '$lib/api/models';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -14,7 +15,7 @@
 	let loading = $state(true);
 	let searchQuery = $state('');
 
-	let ownerNameById = $derived(() => {
+	let ownerNameById = $derived.by(() => {
 		const map = new Map<number, string>();
 		for (const owner of owners) {
 			map.set(owner.id, `${owner.firstName} ${owner.lastName}`);
@@ -23,19 +24,11 @@
 	});
 
 	function ownerName(ownerId: number): string {
-		return ownerNameById().get(ownerId) ?? 'Unknown owner';
-	}
-
-	function calculateAge(birthDate: string | undefined): string {
-		if (!birthDate) return 'Unknown age';
-		const birth = new Date(birthDate);
-		const now = new Date();
-		const years = Math.floor((now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-		return years === 1 ? '1 year old' : `${years} years old`;
+		return ownerNameById.get(ownerId) ?? 'Unknown owner';
 	}
 
 	// Filtered pets based on search query
-	let filteredPets = $derived(() => {
+	let filteredPets = $derived.by(() => {
 		if (!searchQuery.trim()) return pets;
 		const query = searchQuery.toLowerCase();
 		return pets.filter(
@@ -107,7 +100,7 @@
 			<div class="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
 			<p class="text-muted-foreground">Loading pets...</p>
 		</div>
-	{:else if filteredPets().length === 0}
+	{:else if filteredPets.length === 0}
 		<div class="card p-12 text-center">
 			<PawPrint class="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
 			{#if searchQuery}
@@ -129,7 +122,7 @@
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
-					{#each filteredPets() as pet (pet.id)}
+					{#each filteredPets as pet (pet.id)}
 						<Table.Row class="hover:bg-muted/50">
 							<Table.Cell>
 								<a
@@ -165,7 +158,7 @@
 			</Table.Root>
 		</div>
 		<p class="mt-4 text-sm text-muted-foreground">
-			Showing {filteredPets().length} of {pets.length} pets
+			Showing {filteredPets.length} of {pets.length} pets
 		</p>
 	{/if}
 </div>
